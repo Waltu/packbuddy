@@ -8,6 +8,7 @@ import {
   FunctionUrlAuthType,
 } from "aws-cdk-lib/aws-lambda";
 import { CfnOutput } from "aws-cdk-lib";
+import { RustFunction } from "rust.aws-cdk-lambda";
 
 interface StackProps extends cdk.StackProps {
   dynamodbTable: cdk.aws_dynamodb.ITable;
@@ -20,18 +21,14 @@ export class PackingListStack extends cdk.Stack {
     const dynamodbTable = props.dynamodbTable;
 
     const PACKING_LIST_BY_ID_NAME = "get-packing-list-by-id";
-    const handler = new Function(this, "GetPackingListById", {
-      code: Code.fromAsset(
-        path.join(
-          __dirname,
-          "..",
-          "..",
-          `services/${PACKING_LIST_BY_ID_NAME}/target/lambda/${PACKING_LIST_BY_ID_NAME}`
-        )
+    const handler = new RustFunction(this, "GetPackingListById", {
+      directory: path.join(
+        __dirname,
+        "..",
+        "..",
+        `services/${PACKING_LIST_BY_ID_NAME}`
       ),
       architecture: cdk.aws_lambda.Architecture.ARM_64,
-      runtime: Runtime.PROVIDED_AL2,
-      handler: "_",
       tracing: cdk.aws_lambda.Tracing.ACTIVE,
       description: "Get a packing list by ID",
       logRetention: cdk.aws_logs.RetentionDays.ONE_WEEK,
