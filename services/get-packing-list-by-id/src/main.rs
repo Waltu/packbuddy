@@ -6,31 +6,57 @@ use aws_sdk_dynamodb::{
 use std::env;
 
 #[derive(Serialize, Clone)]
-struct ResponseBody {
+struct PackingList {
+    id: String,
     name: String,
 }
 
-async fn function_handler(client: &Client, _: Request) -> Result<Response<Body>, Error> {
-    let item = client
-        .get_item()
+async fn get_packing_list(client: &Client, id: &str) -> Result<PackingList, Error> {
+    let pk = format!("{}{}", "PACKING_LIST#", id);
+    let sk = format!("{}{}", "PACKING_LIST#", id);
+
+    let resp = client.get_item()
         .table_name(env::var("DYNAMODB_TABLE_NAME").unwrap())
         .key(
             "PK",
-            AttributeValue::S("PACKING_LIST#123".to_string()),
+            AttributeValue::S(pk),
         )
         .key(
             "SK",
-            AttributeValue::S("PACKING_LIST#123".to_string()),
+            AttributeValue::S(sk),
         )
         .send()
         .await?;
 
-    let name = item.item.unwrap().get("name").unwrap().as_s().unwrap().clone().into();
+    let item = resp.item.unwrap();
+
+    Ok(PackingList {
+        id: item
+            .get("id")
+            .unwrap()
+            .as_s()
+            .unwrap()
+            .clone()
+            .into(),
+        name: item
+            .get("name")
+            .unwrap()
+            .as_s()
+            .unwrap()
+            .clone()
+            .into(),
+    })
+} 
+
+async fn function_handler(client: &Client, _: Request) -> Result<Response<Body>, Error> {
+    let packing_list = get_packing_list(client, "123").await?;
+
+    let serialized_packing_list = serde_json::to_string(&packing_list).unwrap();
 
     let resp = Response::builder()
         .status(200)
-        .header("content-type", "application/text")
-        .body(name)
+        .header("content-type", "application/json")
+        .body(serialized_packing_list.into())
         .map_err(Box::new)?;
 
     Ok(resp)
@@ -47,7 +73,6 @@ async fn main() -> Result<(), Error> {
 
     let shared_config = aws_config::load_from_env().await;
     let client = Client::new(&shared_config);
-
 
     run(service_fn(|event: Request| function_handler(&client, event))).await?;
     Ok(())
