@@ -5,6 +5,7 @@ use aws_sdk_dynamodb::{
 };
 use std::env;
 use std::collections::HashMap;
+use serde_json::json;
 
 #[derive(Serialize, Clone)]
 struct PackingListItem {
@@ -21,18 +22,17 @@ struct PackingList {
     items: Vec<PackingListItem>,
 }
 
-impl TryFrom<HashMap<String, AttributeValue>> for PackingList {
+impl TryFrom<HashMap<String, AttributeValue>> for PackingListItem {
     type Error = Error;
 
     fn try_from(value: HashMap<String, AttributeValue>) -> Result<Self, Self::Error> {
-        Ok(PackingList {
-            id: value
-                .get("id")
+        Ok(PackingListItem {
+            check: value
+                .get("check")
                 .unwrap()
-                .as_s()
+                .as_bool()
                 .unwrap()
-                .clone()
-                .into(),
+                .clone(),
             name: value
                 .get("name")
                 .unwrap()
@@ -40,44 +40,50 @@ impl TryFrom<HashMap<String, AttributeValue>> for PackingList {
                 .unwrap()
                 .clone()
                 .into(),
+            quantity: value
+                .get("quantity")
+                .unwrap()
+                .as_n()
+                .unwrap()
+                .parse()
+                .unwrap(),
+            id: value
+                .get("id")
+                .unwrap()
+                .as_s()
+                .unwrap()
+                .parse()
+                .unwrap(),
+        })
+    }
+}
+
+impl TryFrom<HashMap<String, AttributeValue>> for PackingList {
+    type Error = Error;
+
+    fn try_from(value: HashMap<String, AttributeValue>) -> Result<Self, Self::Error> {
+        Ok(PackingList {
+            id: value
+                .get("id")
+                .ok_or(Error::from("id not found"))?
+                .as_s()
+                .unwrap()
+                .clone(),
+            name: value
+                .get("name")
+                .ok_or(Error::from("name not found"))?
+                .as_s()
+                .unwrap()
+                .clone(),
             items: value
                 .get("items")
-                .unwrap()
+                .ok_or(Error::from("items not found"))?
                 .as_l()
                 .unwrap()
                 .iter()
                 .map(|item| {
                     let item = item.as_m().unwrap();
-                    PackingListItem {
-                        check: item
-                            .get("check")
-                            .unwrap()
-                            .as_bool()
-                            .unwrap()
-                            .clone(),
-                        name: item
-                            .get("name")
-                            .unwrap()
-                            .as_s()
-                            .unwrap()
-                            .clone()
-                            .into(),
-                        quantity: item
-                            .get("quantity")
-                            .unwrap()
-                            .as_n()
-                            .unwrap()
-                            .parse()
-                            .unwrap(),
-                        id: item
-                            .get("id")
-                            .unwrap()
-                            .as_n()
-                            .unwrap()
-                            .parse()
-                            .unwrap(),
-
-                    }
+                    PackingListItem::try_from(item.clone()).unwrap()
                 })
                 .collect(),
         })
@@ -101,23 +107,37 @@ async fn get_packing_list(client: &Client, id: &str) -> Result<PackingList, Erro
         .send()
         .await?;
 
-    let item = resp.item.unwrap();
-
-    Ok(PackingList::try_from(item).unwrap())
+    match resp.item {
+        Some(item) => {
+            let packing_list = PackingList::try_from(item)?;
+            Ok(packing_list)
+        }
+        None => Err(Error::from("Packing list not found or error occured!")),
+    }
 } 
 
 async fn function_handler(client: &Client, _: Request) -> Result<Response<Body>, Error> {
-    let packing_list = get_packing_list(client, "123").await?;
+    let packing_list = get_packing_list(client, "123").await;
 
-    let serialized_packing_list = serde_json::to_string(&packing_list).unwrap();
+    match packing_list {
+        Ok(packing_list) => {
+            let body = serde_json::to_string(&packing_list)?;
+            Ok(Response::builder()
+                .status(200)
+                .body(Body::from(body))
+                .unwrap())
+        }
+        Err(err) => {
+            let error_body = json!({
+                "error": err.to_string(),
+            });
 
-    let resp = Response::builder()
-        .status(200)
-        .header("content-type", "application/json")
-        .body(serialized_packing_list.into())
-        .map_err(Box::new)?;
-
-    Ok(resp)
+            Ok(Response::builder()
+                .status(500)
+                .body(Body::from(error_body.to_string())) // Return error as json
+                .unwrap())
+        }
+    }
 }
 
 #[tokio::main]
