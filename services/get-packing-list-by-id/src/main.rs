@@ -4,11 +4,75 @@ use aws_sdk_dynamodb::{
     model::AttributeValue, Client,
 };
 use std::env;
+use std::collections::HashMap;
+
+#[derive(Serialize, Clone)]
+struct PackingListItem {
+    check: bool,
+    name: String,
+    quantity: u32,
+}
 
 #[derive(Serialize, Clone)]
 struct PackingList {
     id: String,
     name: String,
+    items: Vec<PackingListItem>,
+}
+
+impl TryFrom<HashMap<String, AttributeValue>> for PackingList {
+    type Error = Error;
+
+    fn try_from(value: HashMap<String, AttributeValue>) -> Result<Self, Self::Error> {
+        Ok(PackingList {
+            id: value
+                .get("id")
+                .unwrap()
+                .as_s()
+                .unwrap()
+                .clone()
+                .into(),
+            name: value
+                .get("name")
+                .unwrap()
+                .as_s()
+                .unwrap()
+                .clone()
+                .into(),
+            items: value
+                .get("items")
+                .unwrap()
+                .as_l()
+                .unwrap()
+                .iter()
+                .map(|item| {
+                    let item = item.as_m().unwrap();
+                    PackingListItem {
+                        check: item
+                            .get("check")
+                            .unwrap()
+                            .as_bool()
+                            .unwrap()
+                            .clone(),
+                        name: item
+                            .get("name")
+                            .unwrap()
+                            .as_s()
+                            .unwrap()
+                            .clone()
+                            .into(),
+                        quantity: item
+                            .get("quantity")
+                            .unwrap()
+                            .as_n()
+                            .unwrap()
+                            .parse()
+                            .unwrap(),
+                    }
+                })
+                .collect(),
+        })
+    }
 }
 
 async fn get_packing_list(client: &Client, id: &str) -> Result<PackingList, Error> {
@@ -30,22 +94,7 @@ async fn get_packing_list(client: &Client, id: &str) -> Result<PackingList, Erro
 
     let item = resp.item.unwrap();
 
-    Ok(PackingList {
-        id: item
-            .get("id")
-            .unwrap()
-            .as_s()
-            .unwrap()
-            .clone()
-            .into(),
-        name: item
-            .get("name")
-            .unwrap()
-            .as_s()
-            .unwrap()
-            .clone()
-            .into(),
-    })
+    Ok(PackingList::try_from(item).unwrap())
 } 
 
 async fn function_handler(client: &Client, _: Request) -> Result<Response<Body>, Error> {
