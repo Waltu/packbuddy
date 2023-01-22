@@ -10,11 +10,7 @@ struct ResponseBody {
     name: String,
 }
 
-
-async fn function_handler(_: Request) -> Result<Response<Body>, Error> {
-    let shared_config = aws_config::load_from_env().await;
-    let client = Client::new(&shared_config);
-
+async fn function_handler(client: &Client, _: Request) -> Result<Response<Body>, Error> {
     let item = client
         .get_item()
         .table_name(env::var("DYNAMODB_TABLE_NAME").unwrap())
@@ -48,5 +44,11 @@ async fn main() -> Result<(), Error> {
         .without_time()
         .init();
 
-    run(service_fn(function_handler)).await
+
+    let shared_config = aws_config::load_from_env().await;
+    let client = Client::new(&shared_config);
+
+
+    run(service_fn(|event: Request| function_handler(&client, event))).await?;
+    Ok(())
 }
