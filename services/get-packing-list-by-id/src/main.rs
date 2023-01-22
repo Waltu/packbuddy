@@ -1,4 +1,4 @@
-use lambda_http::{run, service_fn, Body, Error, Request, Response};
+use lambda_http::{run, service_fn, Body, Error, Request, Response, http::Uri};
 use serde::Serialize;
 use aws_sdk_dynamodb::{
     model::AttributeValue, Client,
@@ -6,6 +6,8 @@ use aws_sdk_dynamodb::{
 use std::env;
 use std::collections::HashMap;
 use serde_json::json;
+use tracing::info;
+use std::time::Instant;
 
 #[derive(Serialize, Clone)]
 struct PackingListItem {
@@ -94,6 +96,8 @@ async fn get_packing_list(client: &Client, id: &str) -> Result<PackingList, Erro
     let pk = format!("{}{}", "PACKING_LIST#", id);
     let sk = format!("{}{}", "PACKING_LIST#", id);
 
+    let start = Instant::now();
+
     let resp = client.get_item()
         .table_name(env::var("DYNAMODB_TABLE_NAME").unwrap())
         .key(
@@ -107,17 +111,33 @@ async fn get_packing_list(client: &Client, id: &str) -> Result<PackingList, Erro
         .send()
         .await?;
 
+    let duration = start.elapsed().as_millis();
+    info!("Time elapsed get_item function: {:?}ms", duration);
+
     match resp.item {
         Some(item) => {
             let packing_list = PackingList::try_from(item)?;
             Ok(packing_list)
         }
-        None => Err(Error::from("Packing list not found or error occured!")),
+        None => Err(Error::from("Packing list not found by provided id")),
     }
 } 
 
-async fn function_handler(client: &Client, _: Request) -> Result<Response<Body>, Error> {
-    let packing_list = get_packing_list(client, "123").await;
+fn get_id_from_uri(uri: &Uri) -> Result<&str, Error> {
+    let id = uri.path().split("/").last();
+
+    match id {
+        Some(id) => Ok(id),
+        None => Err(Error::from("id not found from path")),
+    }
+}
+
+async fn function_handler(client: &Client, request: Request) -> Result<Response<Body>, Error> {
+    info!("Request: {:?}", request);
+    let packing_list_id = get_id_from_uri(request.uri())?;
+
+    let packing_list = get_packing_list(client, packing_list_id).await;
+
 
     match packing_list {
         Ok(packing_list) => {
@@ -134,7 +154,7 @@ async fn function_handler(client: &Client, _: Request) -> Result<Response<Body>,
 
             Ok(Response::builder()
                 .status(500)
-                .body(Body::from(error_body.to_string())) // Return error as json
+                .body(Body::from(error_body.to_string())) 
                 .unwrap())
         }
     }
