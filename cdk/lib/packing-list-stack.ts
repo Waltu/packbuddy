@@ -29,12 +29,13 @@ export class PackingListStack extends cdk.Stack {
           `services/${PACKING_LIST_BY_ID_NAME}/target/lambda/${PACKING_LIST_BY_ID_NAME}`
         )
       ),
+      architecture: cdk.aws_lambda.Architecture.ARM_64,
       runtime: Runtime.PROVIDED_AL2,
       handler: "_",
       tracing: cdk.aws_lambda.Tracing.ACTIVE,
       description: "Get a packing list by ID",
       logRetention: cdk.aws_logs.RetentionDays.ONE_WEEK,
-      insightsVersion: cdk.aws_lambda.LambdaInsightsVersion.VERSION_1_0_143_0,
+      insightsVersion: cdk.aws_lambda.LambdaInsightsVersion.VERSION_1_0_135_0,
       environment: {
         DYNAMODB_TABLE_NAME: dynamodbTable.tableName,
       },
