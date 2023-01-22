@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 #[derive(Serialize, Clone)]
 struct PackingListItem {
+    id: String,
     check: bool,
     name: String,
     quantity: u32,
@@ -68,6 +69,14 @@ impl TryFrom<HashMap<String, AttributeValue>> for PackingList {
                             .unwrap()
                             .parse()
                             .unwrap(),
+                        id: item
+                            .get("id")
+                            .unwrap()
+                            .as_n()
+                            .unwrap()
+                            .parse()
+                            .unwrap(),
+
                     }
                 })
                 .collect(),
