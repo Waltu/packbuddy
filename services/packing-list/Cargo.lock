@@ -641,7 +641,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "get-packing-list-by-id"
+name = "get-packing-list"
 version = "0.1.0"
 dependencies = [
  "aws-config",
@@ -649,6 +649,7 @@ dependencies = [
  "lambda_http",
  "lambda_runtime",
  "log",
+ "model",
  "serde",
  "serde_json",
  "tokio",
@@ -929,6 +930,16 @@ dependencies = [
  "log",
  "wasi",
  "windows-sys",
+]
+
+[[package]]
+name = "model"
+version = "0.1.0"
+dependencies = [
+ "aws-sdk-dynamodb",
+ "lambda_http",
+ "serde",
+ "tracing",
 ]
 
 [[package]]
