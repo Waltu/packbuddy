@@ -4,9 +4,10 @@ use aws_sdk_dynamodb::{
 };
 use std::env;
 use serde_json::json;
-use tracing::{info, error};
+use tracing::{info, error, warn};
 use std::time::Instant;
 use model::PackingList;
+use utils::response;
 
 
 async fn get_packing_list(client: &Client, id: &str) -> Result<Option<PackingList>, Error> {
@@ -49,14 +50,6 @@ fn get_id_from_uri(uri: &Uri) -> Result<&str, Error> {
     }
 }
 
-fn response(status_code: StatusCode, body: String) -> Response<Body> {
-    Response::builder()
-        .status(status_code)
-        .header("Content-Type", "application/json")
-        .body(Body::from(body))
-        .unwrap()
-}
-
 async fn function_handler(client: &Client, request: Request) -> Result<Response<Body>, Error> {
     info!("Request: {:?}", request);
     let packing_list_id = get_id_from_uri(request.uri())?;
@@ -66,20 +59,16 @@ async fn function_handler(client: &Client, request: Request) -> Result<Response<
     match packing_list {
         Ok(Some(packing_list)) => {
             let body = serde_json::to_string(&packing_list)?;
-            Ok(Response::builder()
-                .status(200)
-                .body(Body::from(body))
-                .unwrap())
+            Ok(response(StatusCode::OK, body))
         },
-        Ok(None) => Ok(response(StatusCode::NOT_FOUND, json!({"message": "packing list not found"}).to_string())),
+        Ok(None) => {
+            warn!("Packing list not found by ID: {}", packing_list_id);
+            Ok(response(StatusCode::NOT_FOUND, json!({"message": "packing list not found"}).to_string()))
+        },
         Err(err) => {
             error!("Error fetching packing list: {}", err);
 
-            let error_body = json!({
-                "error": err.to_string(),
-            });
-
-            Ok(response(StatusCode::INTERNAL_SERVER_ERROR, error_body.to_string()))
+            Ok(response(StatusCode::INTERNAL_SERVER_ERROR, json!({ "error": err.to_string() }).to_string()))
         }
     }
 }

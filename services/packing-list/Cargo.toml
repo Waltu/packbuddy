@@ -2,5 +2,7 @@
 
 members = [
     "get-packing-list",
+    "put-packing-list",
+    "utils",
     "model"
 ]

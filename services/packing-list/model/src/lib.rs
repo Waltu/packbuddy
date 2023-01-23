@@ -1,9 +1,9 @@
 use aws_sdk_dynamodb::model::AttributeValue;
 use lambda_http::Error;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct PackingListItem {
     id: String,
     check: bool,
@@ -11,11 +11,11 @@ pub struct PackingListItem {
     quantity: u32,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct PackingList {
-    id: String,
-    name: String,
-    items: Vec<PackingListItem>,
+    pub id: String,
+    pub name: String,
+    pub items: Vec<PackingListItem>,
 }
 
 impl TryFrom<HashMap<String, AttributeValue>> for PackingListItem {
